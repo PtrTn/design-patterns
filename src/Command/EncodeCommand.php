@@ -7,10 +7,14 @@ namespace App\Command;
 use App\AbstractFactory\EncoderFactory;
 use App\AbstractFactory\EncodingType;
 use InvalidArgumentException;
+use RuntimeException;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Question\ChoiceQuestion;
+use Symfony\Component\Console\Question\Question;
 
 final class EncodeCommand extends Command
 {
@@ -26,23 +30,18 @@ final class EncodeCommand extends Command
         $this
             ->setDescription('Encodes a password')
             ->setHelp('This command demos the use of the abstract factory design pattern')
-            ->addArgument('password', InputArgument::REQUIRED, 'Please enter a password you\'d like to encode')
-            ->addArgument('encoding', InputArgument::OPTIONAL, 'How would you like to encode the password?', 'SHA256')
         ;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $encoding = $input->getArgument('encoding');
-        if (!is_string($encoding)) {
-            throw new InvalidArgumentException('Encoding must be a string');
+        $helper = $this->getHelper('question');
+        if (!$helper instanceof QuestionHelper) {
+            throw new RuntimeException('Unable to get console question helper');
         }
-        $encodingType = EncodingType::fromString($encoding);
 
-        $password = $input->getArgument('password');
-        if (!is_string($password)) {
-            throw new InvalidArgumentException('Password must be a string');
-        }
+        $password = $helper->ask($input, $output, $this->getPasswordQuestion());
+        $encodingType = $helper->ask($input, $output, $this->getEncodingQuestion());
 
         $encoder = EncoderFactory::getEncoderFactory($encodingType);
         $encodedPassword = $encoder->getEncoder()->encode($password);
@@ -52,5 +51,34 @@ final class EncodeCommand extends Command
         $output->writeln('-- End of encoded password --');
 
         return Command::SUCCESS;
+    }
+
+    protected function getPasswordQuestion(): Question
+    {
+        $passwordQuestion = new Question('Please enter a password you\'d like to encode: ');
+        $passwordQuestion->setHidden(true);
+        $passwordQuestion->setHiddenFallback(false);
+        $passwordQuestion->setValidator(function ($answer) {
+            if (!is_string($answer)) {
+                throw new InvalidArgumentException('Password must be a string');
+            }
+            return $answer;
+        });
+
+        return $passwordQuestion;
+    }
+
+    protected function getEncodingQuestion(): ChoiceQuestion
+    {
+        $encodingQuestion = new ChoiceQuestion(
+            'How would you like to encode the password?',
+            EncodingType::all(),
+            EncodingType::SHA256
+        );
+        $encodingQuestion->setValidator(function ($encoding) {
+            return EncodingType::fromString($encoding);
+        });
+
+        return $encodingQuestion;
     }
 }

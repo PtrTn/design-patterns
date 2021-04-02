@@ -16,7 +16,7 @@ final class EncodingType
 
     private function __construct(string $encodingType)
     {
-        Assert::oneOf($encodingType, [self::MD5, self::SHA256, self::ROT13]);
+        Assert::oneOf($encodingType, self::all());
 
         $this->encodingType = $encodingType;
     }
@@ -24,6 +24,12 @@ final class EncodingType
     public static function fromString(string $encodingType)
     {
         return new self($encodingType);
+    }
+
+    /** @returns string[] */
+    public static function all(): array
+    {
+        return [self::MD5, self::SHA256, self::ROT13];
     }
 
     public function toString(): string
